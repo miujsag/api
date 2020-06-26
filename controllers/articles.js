@@ -33,32 +33,6 @@ async function init(request, response, next) {
   }
 }
 
-function searchArticles(request, response, next) {
-  const query = request.query.query || "";
-  const siteIds = toList(request.query.sites);
-  const categoryIds = toList(request.query.categories);
-  const from = request.query.from;
-  const until = request.query.until;
-  const skip = request.query.skip;
-  const sort = request.query.sort;
-
-  search(client, query, siteIds, categoryIds, from, until, skip, sort)
-    .then(({ articles, total }) => {
-      console.log({ articles, total });
-      const isMore = total && total.value > parseInt(skip) + 20;
-      response.json({ articles, isMore });
-    })
-    .catch((error) => {
-      next(
-        new Error(
-          createLogMessage({
-            resource: "search",
-            error: error.message,
-          })
-        )
-      );
-    });
-}
 async function index(request, response, next) {
   try {
     const siteIds = toList(request.query.sites);
@@ -96,7 +70,7 @@ function searchArticles(request, response, next) {
   const sort = request.query.sort;
   search(client, query, siteIds, categoryIds, from, until, skip, sort)
     .then(({ articles, total }) => {
-      response.json({ articles, count: total });
+      response.json({ articles, total: total.value });
     })
     .catch((error) => {
       next(
