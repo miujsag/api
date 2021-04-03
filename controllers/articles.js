@@ -1,12 +1,12 @@
-const { Site, Article, Day, Weather, Rate, Category } = require("db");
-const { search, createSearchClient } = require("search");
+const { Site, Article, Day, Weather, Rate, Category, Keyword } = require("db");
+const { search, connectSimple } = require("search");
 const { createLogMessage } = require("logger");
 const { toList } = require("./helpers");
-const client = createSearchClient(process.env.HOST, process.env.LOG);
+const client = connectSimple(process.env.HOST);
 
 async function init(request, response, next) {
   try {
-    const sites = await Site.lists();
+    const sites = await Site.lists("active");
     const categories = await Category.lists();
     const [day, weather, rates] = await Promise.all([
       Day.today(),
@@ -38,18 +38,40 @@ async function index(request, response, next) {
     const siteIds = toList(request.query.sites);
     const categoryIds = toList(request.query.categories);
     const until = request.query.until || new Date();
-    const { rows, count } = await Article.lists(
-      siteIds,
-      categoryIds,
-      until,
-      20
-    );
+    const keyword = request.query.keyword || "";
+    const responseObj = {};
 
-    response.json({
-      count,
-      articles: rows,
-    });
+    if (keyword) {
+      const { rows, count } = await Article.listByKeyword(
+        siteIds,
+        categoryIds,
+        keyword,
+        until
+      );
+
+      responseObj.articles = rows;
+      responseObj.count = count;
+    } else {
+      const { rows, count } = await Article.lists(
+        siteIds,
+        categoryIds,
+        until,
+        20,
+        keyword
+      );
+
+      responseObj.articles = rows;
+      responseObj.count = count;
+    }
+
+    if (request.query.hasOwnProperty("keywords")) {
+      const keywords = await Keyword.getPopular(siteIds, categoryIds);
+
+      responseObj.keywords = keywords;
+    }
+    response.json(responseObj);
   } catch (error) {
+    console.log(error);
     next(
       new Error(
         createLogMessage({
@@ -60,6 +82,7 @@ async function index(request, response, next) {
     );
   }
 }
+
 function searchArticles(request, response, next) {
   const query = request.query.query || "";
   const siteIds = toList(request.query.sites);
@@ -83,6 +106,7 @@ function searchArticles(request, response, next) {
       );
     });
 }
+
 module.exports = {
   init,
   index,
